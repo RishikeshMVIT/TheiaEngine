@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CodeSnippets xmlns="http://schemas.microsoft.com/VisualStudio/2005/CodeSnippet">
+    <CodeSnippet Format="1.0.0">
+        <Header>
+            <Title>Property</Title>
+            <Shortcut>vprop</Shortcut>
+        </Header>
+        <Snippet>
+            <Declarations>
+                <Literal>
+                    <ID>Type</ID>
+                    <ToolTip>Enter type</ToolTip>
+                    <Default>int</Default>
+                </Literal>
+                <Literal>
+                    <ID>Property</ID>
+                    <ToolTip>Enter name of property</ToolTip>
+                    <Default>Property</Default>
+                </Literal>
+            </Declarations>
+            <Code Language="csharp">
+                <![CDATA[
+                private $Type$ _$Property$;
+                public $Type$ $Property$
+                {
+	                get => _$Property$;
+	                set
+	                {
+		                if (_$Property$ != value) 
+		                { 
+			                _$Property$ = value;
+                            OnPropertyChanged(nameof($Property$));
+                        }
+		
+	                }
+                }
+                ]]>
+            </Code>
+
+        </Snippet>
+    </CodeSnippet>
+</CodeSnippets>

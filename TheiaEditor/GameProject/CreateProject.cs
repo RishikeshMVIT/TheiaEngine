@@ -9,65 +9,92 @@ using TheiaEditor.Utility;
 
 namespace TheiaEditor.GameProject
 {
-	[DataContract]
-	public class ProjectTemplate
-	{
-		[DataMember]
-		public string ProjectType { get; set; }
-		[DataMember]
-		public string ProjectFile { get; set; }
-		[DataMember]
-		public List<string> ProjectFolders { get; set; }
-		[DataMember]
-		public string ProjectPath { get; set; }
-		[DataMember]
-		public string IconPath { get; set; }
-		[DataMember]
-		public string ScreenshotPath { get; set; }
-
-		public byte[] Icon { get; set; }
-		public byte[] Screenshot { get; set; }
-
-	}
-
 	class CreateProject : ViewModelBase
 	{
-		//TODO: Get path from installation location
-		private readonly string _templatePath = $@"..\..\Data\ProjectTemplates";
+        private bool ValidateProjectPath()
+        {
+            var path = ProjectPath;
+			if (!Path.EndsInDirectorySeparator(path)) { path += @"\"; }
+			path += $@"{ProjectName}";
 
-		private string _projectName = "NewProject";
-		public string ProjectName 
-		{ 
-			get { return _projectName; }
-			set
+			IsValid = false;
+			if (string.IsNullOrEmpty(ProjectName.Trim()))
 			{
-				if (_projectName != value)
-				{
-					_projectName = value;
-					OnPropertyChanged(ProjectName);
-				}
+				ErrorMessage = "Enter Project Name";
 			}
-		}
+			else if (ProjectName.IndexOfAny(Path.GetInvalidFileNameChars()) != -1)
+			{
+				ErrorMessage = "Project Name contains invalid characters";
+			}
+			else if (ProjectPath.IndexOfAny(Path.GetInvalidPathChars()) != -1)
+			{
+				ErrorMessage = "Project Patrh contains invalid characters";
+			}
+			else if (Directory.Exists(path) && Directory.EnumerateFileSystemEntries(path).Any())
+			{
+				ErrorMessage = "Project Folder already exists";
+			}
+			else
+			{
+				ErrorMessage = string.Empty;
+				IsValid = true;
+			}
 
-		private string _projectPath = $@"{Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)}\TheiaProjects";
-		public string ProjectPath
+			return IsValid;
+			
+        }
+
+		public string CreateProjectFromTemplate(ProjectTemplate template)
 		{
-			get => _projectPath;
-			set
+			ValidateProjectPath();
+			if (!IsValid)
 			{
-				if (_projectPath != value)
-				{
-					_projectPath = value;
-					OnPropertyChanged(ProjectPath);
-				}
+				return string.Empty;
 			}
+
+			if (!Path.EndsInDirectorySeparator(ProjectPath)) { ProjectPath += @"\"; }
+
+			var path = $@"{ProjectPath}{ProjectName}\";
+
+			try
+			{
+				if (!Directory.Exists(path)) { Directory.CreateDirectory(path); }
+
+                foreach (var folder in template.ProjectFolders)
+                {
+					Directory.CreateDirectory(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path), folder)));
+                }
+
+				var dirInfo = new DirectoryInfo(path + @".Theia\");
+				dirInfo.Attributes |= FileAttributes.Hidden;
+
+				File.Copy(template.IconPath, Path.GetFullPath(Path.Combine(dirInfo.FullName, "Icon.png")));
+                File.Copy(template.ScreenshotPath, Path.GetFullPath(Path.Combine(dirInfo.FullName, "Screenshot.png")));
+
+				//var project = new Project(ProjectName, path);
+				//Serializer.ToFile(project, path + ProjectName + Project.Extension);
+
+                var project = File.ReadAllText(template.ProjectPath);
+                var projectPath = Path.GetFullPath(Path.Combine(path, $"{ProjectName}{Project.Extension}"));
+                project = string.Format(project, ProjectName, path);
+
+                File.WriteAllText(projectPath, project);
+
+
+                return path;
+
+            }
+			catch (Exception ex)
+			{
+				Debug.WriteLine(ex.Message);
+				//TODO: Logging
+			}
+
+			return string.Empty;
 		}
 
-        private ObservableCollection<ProjectTemplate> _projectTemplates = [];
-		public ReadOnlyObservableCollection<ProjectTemplate> ProjectTemplates
-		{ get; }
 
-		public CreateProject()
+        public CreateProject()
 		{
 			ProjectTemplates = new ReadOnlyObservableCollection<ProjectTemplate>(_projectTemplates);
 
@@ -78,8 +105,8 @@ namespace TheiaEditor.GameProject
 
 				foreach (var file in templateFiles)
 				{
-					var template = Serializer.FromFile<ProjectTemplate>(file);
-					template.IconPath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(file), "Icon.png"));
+                    var template = Serializer.FromFile<ProjectTemplate>(file);
+                    template.IconPath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(file), "Icon.png"));
 					template.Icon = File.ReadAllBytes(template.IconPath);
 					template.ScreenshotPath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(file), "Screenshot.png"));
 					template.Screenshot = File.ReadAllBytes(template.ScreenshotPath);
@@ -87,6 +114,8 @@ namespace TheiaEditor.GameProject
 
                     _projectTemplates.Add(template);
 				}
+
+				ValidateProjectPath();
 			}
 			catch (Exception ex)
 			{
@@ -94,5 +123,74 @@ namespace TheiaEditor.GameProject
 				Debug.WriteLine(ex.Message);
 			}
 		}
-	}
+
+
+        //TODO: Get path from installation location
+        private readonly string _templatePath = $@"..\..\Data\ProjectTemplates";
+
+        private string _projectName = "NewProject";
+        public string ProjectName
+        {
+            get { return _projectName; }
+            set
+            {
+                if (_projectName != value)
+                {
+                    _projectName = value;
+                    ValidateProjectPath();
+                    OnPropertyChanged(nameof(ProjectName));
+                }
+            }
+        }
+
+        private string _projectPath = $@"{Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)}\TheiaProjects";
+        public string ProjectPath
+        {
+            get => _projectPath;
+            set
+            {
+                if (_projectPath != value)
+                {
+                    _projectPath = value;
+                    ValidateProjectPath();
+                    OnPropertyChanged(nameof(ProjectPath));
+                }
+            }
+        }
+
+        private bool _isValid = false;
+        public bool IsValid
+        {
+            get => _isValid;
+            set
+            {
+                if (_isValid != value)
+                {
+                    _isValid = value;
+                    OnPropertyChanged(nameof(IsValid));
+                }
+
+            }
+        }
+
+        private string _errorMessage = "";
+        public string ErrorMessage
+        {
+            get => _errorMessage;
+            set
+            {
+                if (_errorMessage != value)
+                {
+                    _errorMessage = value;
+                    OnPropertyChanged(nameof(ErrorMessage));
+                }
+
+            }
+        }
+
+        private ObservableCollection<ProjectTemplate> _projectTemplates = [];
+        public ReadOnlyObservableCollection<ProjectTemplate> ProjectTemplates
+        { get; }
+
+    }
 }
